@@ -1,0 +1,7 @@
+[package]
+name = "poyot"
+version = "0.1.0"
+authors = ["prime <prime@kmc.gr.jp>"]
+edition = "2018"
+
+[dependencies]
