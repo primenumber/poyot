@@ -17,7 +17,7 @@ pub enum Operand {
     Expression,
     Statement,
     Declare,
-    FunctionDeclare{name: String, args: Vec<String>}
+    FunctionDeclare{name: String, args: Vec<String>, retnum: usize}
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -304,7 +304,7 @@ fn declaration(tokens: &[Token]) -> Option<(AST, usize)> {
             }
             let res = AST::Node(Node {
                 op: Operand::FunctionDeclare{
-                    name: name.to_string(), args: args
+                    name: name.to_string(), args: args, retnum: *retnum as usize
                 },
                 children: vec![statements; 1]
             });
