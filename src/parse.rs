@@ -27,16 +27,22 @@ pub struct Node {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub enum Leaf {
+    Identifier(String),
+    Constant(i32)
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub enum AST {
     Node(Node),
-    Leaf(TokenType)
+    Leaf(Leaf)
 }
 
 fn expression(tokens: &[Token]) -> Option<(AST, usize)> {
     let mut itr = tokens.iter();
     match itr.next() {
-        Some(Token{token:TokenType::Constant(constant), pos:_}) => Some((AST::Leaf(TokenType::Constant(*constant)), 1)),
-        Some(Token{token:TokenType::Identifier(identifier), pos:_}) => Some((AST::Leaf(TokenType::Identifier(identifier.to_string())), 1)),
+        Some(Token{token:TokenType::Constant(constant), pos:_}) => Some((AST::Leaf(Leaf::Constant(*constant)), 1)),
+        Some(Token{token:TokenType::Identifier(identifier), pos:_}) => Some((AST::Leaf(Leaf::Identifier(identifier.to_string())), 1)),
         _ => None
     }
 }
@@ -86,13 +92,10 @@ fn expression_list(tokens: &[Token]) -> Option<(Vec<AST>, usize)> {
 
 fn statement(tokens: &[Token]) -> Option<(AST, usize)> {
     let mut itr = tokens.iter();
-    let left: Token;
+    let left: Leaf;
     match itr.next() {
         Some(Token{token:TokenType::Identifier(identifier), pos}) => {
-            left = Token {
-                token:TokenType::Identifier(identifier.to_string()),
-                pos: pos.clone()
-            };
+            left = Leaf::Identifier(identifier.to_string());
         }
         Some(other) => {
             println!("At {:?}: Unexpected {:?}, expected identifier", other.pos, other.token);
@@ -105,19 +108,13 @@ fn statement(tokens: &[Token]) -> Option<(AST, usize)> {
     }
     match itr.next() {
         Some(Token{token:TokenType::Punctuator(Punctuator::Equal), pos:_}) => {
-            let right: Token;
+            let right: Leaf;
             match itr.next() {
                 Some(Token{token:TokenType::Identifier(identifier), pos}) => {
-                    right = Token {
-                        token:TokenType::Identifier(identifier.to_string()),
-                        pos: pos.clone()
-                    };
+                    right = Leaf::Identifier(identifier.to_string());
                 }
                 Some(Token{token:TokenType::Constant(constant), pos}) => {
-                    right = Token {
-                        token:TokenType::Constant(*constant),
-                        pos: pos.clone()
-                    };
+                    right = Leaf::Constant(*constant);
                 }
                 Some(other) => {
                     println!("At {:?}: Unexpected {:?}, expected identifier or constant", other.pos, other.token);
@@ -136,8 +133,8 @@ fn statement(tokens: &[Token]) -> Option<(AST, usize)> {
             Some((AST::Node(Node {
                 op: Operand::Substitute,
                 children: vec![
-                    AST::Leaf(left.token),
-                    AST::Leaf(right.token)
+                    AST::Leaf(left),
+                    AST::Leaf(right)
                 ]
             }), 4))
         }
@@ -149,8 +146,8 @@ fn statement(tokens: &[Token]) -> Option<(AST, usize)> {
                         Some(Token{token:TokenType::Punctuator(Punctuator::ParenthesisRight), pos:_}) => {
                             match itr2.next() {
                                 Some(Token{token:TokenType::Punctuator(Punctuator::SemiColon), pos:_}) => {
-                                    match left.token {
-                                        TokenType::Identifier(funcname) => {
+                                    match left {
+                                        Leaf::Identifier(funcname) => {
                                             Some((AST::Node(Node {
                                                 op: Operand::Call{name: funcname},
                                                 children: expressions
