@@ -1,4 +1,5 @@
 use super::tokenize::Token;
+use super::tokenize::TokenType;
 use super::tokenize::Punctuator;
 use super::tokenize::Keyword;
 
@@ -28,21 +29,21 @@ pub struct Node {
 #[derive(Debug, Clone, PartialEq)]
 pub enum AST {
     Node(Node),
-    Leaf(Token)
+    Leaf(TokenType)
 }
 
 fn expression(tokens: &[Token]) -> Option<(AST, usize)> {
     let mut itr = tokens.iter();
     match itr.next() {
-        Some(Token::Constant(constant)) => Some((AST::Leaf(Token::Constant(*constant)), 1)),
-        Some(Token::Identifier(identifier)) => Some((AST::Leaf(Token::Identifier(identifier.to_string())), 1)),
+        Some(Token{token:TokenType::Constant(constant), pos:_}) => Some((AST::Leaf(TokenType::Constant(*constant)), 1)),
+        Some(Token{token:TokenType::Identifier(identifier), pos:_}) => Some((AST::Leaf(TokenType::Identifier(identifier.to_string())), 1)),
         _ => None
     }
 }
 
 fn expression_loop(tokens: &[Token], res: &mut Vec<AST>) -> Option<usize> {
     if tokens.len() >= 1 {
-        if tokens[0] == Token::Punctuator(Punctuator::ParenthesisRight) {
+        if tokens[0].token == TokenType::Punctuator(Punctuator::ParenthesisRight) {
             return Some(0);
         }
     }
@@ -61,14 +62,14 @@ fn expression_loop(tokens: &[Token], res: &mut Vec<AST>) -> Option<usize> {
     res.push(expression_);
     let mut itr2 = itr.skip(seek);
     match itr2.next() {
-        Some(Token::Punctuator(Punctuator::Comma)) => {
+        Some(Token{token:TokenType::Punctuator(Punctuator::Comma), pos:_}) => {
             offset += 1;
             match expression_loop(tokens.get(offset..).unwrap(), res) {
                 Some(seek) => Some(offset+seek),
                 None => None
             }
         }
-        Some(Token::Punctuator(Punctuator::ParenthesisRight)) => {
+        Some(Token{token:TokenType::Punctuator(Punctuator::ParenthesisRight), pos:_}) => {
             Some(offset)
         }
         _ => return None
@@ -87,11 +88,14 @@ fn statement(tokens: &[Token]) -> Option<(AST, usize)> {
     let mut itr = tokens.iter();
     let left: Token;
     match itr.next() {
-        Some(Token::Identifier(identifier)) => {
-            left = Token::Identifier(identifier.to_string());
+        Some(Token{token:TokenType::Identifier(identifier), pos}) => {
+            left = Token {
+                token:TokenType::Identifier(identifier.to_string()),
+                pos: pos.clone()
+            };
         }
         Some(other) => {
-            println!("Unexpected {:?}, expected identifier", other);
+            println!("At {:?}: Unexpected {:?}, expected identifier", other.pos, other.token);
             return None
         }
         _ => {
@@ -100,25 +104,31 @@ fn statement(tokens: &[Token]) -> Option<(AST, usize)> {
         }
     }
     match itr.next() {
-        Some(Token::Punctuator(Punctuator::Equal)) => {
+        Some(Token{token:TokenType::Punctuator(Punctuator::Equal), pos:_}) => {
             let right: Token;
             match itr.next() {
-                Some(Token::Identifier(identifier)) => {
-                    right = Token::Identifier(identifier.to_string());
+                Some(Token{token:TokenType::Identifier(identifier), pos}) => {
+                    right = Token {
+                        token:TokenType::Identifier(identifier.to_string()),
+                        pos: pos.clone()
+                    };
                 }
-                Some(Token::Constant(constant)) => {
-                    right = Token::Constant(*constant);
+                Some(Token{token:TokenType::Constant(constant), pos}) => {
+                    right = Token {
+                        token:TokenType::Constant(*constant),
+                        pos: pos.clone()
+                    };
                 }
                 Some(other) => {
-                    println!("Unexpected {:?}, expected identifier or constant", other);
+                    println!("At {:?}: Unexpected {:?}, expected identifier or constant", other.pos, other.token);
                     return None
                 }
                 _ => return None
             }
             match itr.next() {
-                Some(Token::Punctuator(Punctuator::SemiColon)) => {}
+                Some(Token{token:TokenType::Punctuator(Punctuator::SemiColon), pos:_}) => {}
                 Some(other) => {
-                    println!("Unexpected {:?}, expected ;", other);
+                    println!("At {:?}: Unexpected {:?}, expected ;", other.pos, other.token);
                     return None
                 }
                 _ => return None
@@ -126,21 +136,21 @@ fn statement(tokens: &[Token]) -> Option<(AST, usize)> {
             Some((AST::Node(Node {
                 op: Operand::Substitute,
                 children: vec![
-                    AST::Leaf(left),
-                    AST::Leaf(right)
+                    AST::Leaf(left.token),
+                    AST::Leaf(right.token)
                 ]
             }), 4))
         }
-        Some(Token::Punctuator(Punctuator::ParenthesisLeft)) => {
+        Some(Token{token:TokenType::Punctuator(Punctuator::ParenthesisLeft), pos:_}) => {
             match expression_list(tokens.get(2..).unwrap()) {
                 Some((expressions, seek)) => {
                     let mut itr2 = itr.skip(seek);
                     match itr2.next() {
-                        Some(Token::Punctuator(Punctuator::ParenthesisRight)) => {
+                        Some(Token{token:TokenType::Punctuator(Punctuator::ParenthesisRight), pos:_}) => {
                             match itr2.next() {
-                                Some(Token::Punctuator(Punctuator::SemiColon)) => {
-                                    match left {
-                                        Token::Identifier(funcname) => {
+                                Some(Token{token:TokenType::Punctuator(Punctuator::SemiColon), pos:_}) => {
+                                    match left.token {
+                                        TokenType::Identifier(funcname) => {
                                             Some((AST::Node(Node {
                                                 op: Operand::Call{name: funcname},
                                                 children: expressions
@@ -153,7 +163,7 @@ fn statement(tokens: &[Token]) -> Option<(AST, usize)> {
                             }
                         }
                         Some(other) => {
-                            println!("Unexpected {:?}, expected )", other);
+                            println!("At {:?}: Unexpected {:?}, expected )", other.pos, other.token);
                             return None
                         }
                         _ => {
@@ -166,7 +176,7 @@ fn statement(tokens: &[Token]) -> Option<(AST, usize)> {
             }
         }
         Some(other) => {
-            println!("Unexpected {:?}, expected = or (", other);
+            println!("At {:?}: Unexpected {:?}, expected = or (", other.pos, other.token);
             return None
         }
         _ => {
@@ -178,7 +188,7 @@ fn statement(tokens: &[Token]) -> Option<(AST, usize)> {
 
 fn statements_loop(tokens: &[Token], node: &mut Node) -> Option<usize> {
     if tokens.len() >= 1 {
-        if tokens[0] == Token::Punctuator(Punctuator::BraceRight) {
+        if tokens[0].token == TokenType::Punctuator(Punctuator::BraceRight) {
             return Some(0);
         }
     }
@@ -210,19 +220,19 @@ fn statement_list(tokens: &[Token]) -> Option<(AST, usize)> {
 fn argument_list(tokens: &[Token]) -> Option<(Vec<String>, usize)> {
     let mut tokens_itr = tokens.iter();
     match tokens_itr.next() {
-        Some(Token::Punctuator(Punctuator::ParenthesisLeft)) => {
+        Some(Token{token:TokenType::Punctuator(Punctuator::ParenthesisLeft), pos:_}) => {
             let mut res = Vec::<String>::new();
             let mut len = 1;
             loop {
                 match tokens_itr.next() {
-                    Some(Token::Identifier(identifier)) => {
+                    Some(Token{token:TokenType::Identifier(identifier), pos:_}) => {
                         res.push(identifier.to_string());
                     }
-                    Some(Token::Punctuator(Punctuator::ParenthesisRight)) => {
+                    Some(Token{token:TokenType::Punctuator(Punctuator::ParenthesisRight), pos:_}) => {
                         return Some((res, len+1))
                     }
                     Some(other) => {
-                        println!("Unexpected {:?}, expected identifier or )", other);
+                        println!("At {:?}: Unexpected {:?}, expected identifier or )", other.pos, other.token);
                         return None
                     }
                     _ => {
@@ -232,12 +242,12 @@ fn argument_list(tokens: &[Token]) -> Option<(Vec<String>, usize)> {
                 }
                 len += 1;
                 match tokens_itr.next() {
-                    Some(Token::Punctuator(Punctuator::Comma)) => {}
-                    Some(Token::Punctuator(Punctuator::ParenthesisRight)) => {
+                    Some(Token{token:TokenType::Punctuator(Punctuator::Comma), pos:_}) => {}
+                    Some(Token{token:TokenType::Punctuator(Punctuator::ParenthesisRight), pos:_}) => {
                         return Some((res, len+1))
                     }
                     Some(other) => {
-                        println!("Unexpected {:?}, expected , or )", other);
+                        println!("At {:?}: Unexpected {:?}, expected , or )", other.pos, other.token);
                         return None
                     }
                     _ => {
@@ -255,11 +265,11 @@ fn argument_list(tokens: &[Token]) -> Option<(Vec<String>, usize)> {
 fn declaration(tokens: &[Token]) -> Option<(AST, usize)> {
     let mut tokens_itr = tokens.iter();
     match tokens_itr.next() {
-        Some(Token::Keyword(Keyword::FN)) => {
+        Some(Token{token:TokenType::Keyword(Keyword::FN), pos:_}) => {
             match tokens_itr.next() {
-                Some(Token::Punctuator(Punctuator::BracketLeft)) => (),
+                Some(Token{token:TokenType::Punctuator(Punctuator::BracketLeft), pos:_}) => (),
                 Some(other) => {
-                    println!("Unexpected {:?}, expected {{", other);
+                    println!("At {:?}:Unexpected {:?}, expected {{", other.pos, other.token);
                     return None
                 }
                 _ => {
@@ -269,30 +279,30 @@ fn declaration(tokens: &[Token]) -> Option<(AST, usize)> {
             }
             let retnum;
             match tokens_itr.next() {
-                Some(Token::Constant(num)) => {
+                Some(Token{token:TokenType::Constant(num), pos:_}) => {
                     retnum = num;
                 }
                 _ => return None
             }
             match tokens_itr.next() {
-                Some(Token::Punctuator(Punctuator::BracketRight)) => (),
+                Some(Token{token:TokenType::Punctuator(Punctuator::BracketRight), pos:_}) => (),
                 _ => return None
             }
             let name;
             match tokens_itr.next() {
-                Some(Token::Identifier(s)) => name = s,
+                Some(Token{token:TokenType::Identifier(s), pos:_}) => name = s,
                 _ => return None
             }
             let (args, seek) = argument_list(tokens.get(5..).unwrap())?;
             let mut tokens_itr_2 = tokens_itr.skip(seek);
             match tokens_itr_2.next() {
-                Some(Token::Punctuator(Punctuator::BraceLeft)) => (),
+                Some(Token{token:TokenType::Punctuator(Punctuator::BraceLeft), pos:_}) => (),
                 _ => return None
             }
             let (statements, seek2) = statement_list(tokens.get((6+seek)..).unwrap())?;
             let mut tokens_itr_3 = tokens_itr_2.skip(seek2);
             match tokens_itr_3.next() {
-                Some(Token::Punctuator(Punctuator::BraceRight)) => (),
+                Some(Token{token:TokenType::Punctuator(Punctuator::BraceRight), pos:_}) => (),
                 _ => return None
             }
             let res = AST::Node(Node {

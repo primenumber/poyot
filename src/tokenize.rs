@@ -29,11 +29,24 @@ pub enum Punctuator {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum Token {
+pub enum TokenType {
     Keyword(Keyword),
     Identifier(String),
     Constant(i32),
     Punctuator(Punctuator)
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Pos {
+    line: usize,
+    block_pos: usize,
+    char_pos: usize
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Token {
+    pub token: TokenType,
+    pub pos: Pos
 }
 
 fn is_identifier_nondigit(c: char) -> bool {
@@ -78,7 +91,7 @@ fn make_punctuator(punctuator: char) -> Option<Punctuator> {
     }
 }
 
-fn tokenize_impl(code: &str) -> Option<(Token, usize)> {
+fn tokenize_impl(code: &str, pos: Pos) -> Option<(Token, usize)> {
     let mut chars = code.chars();
     match chars.next() {
         Some(c) => {
@@ -99,8 +112,8 @@ fn tokenize_impl(code: &str) -> Option<(Token, usize)> {
                     len += 1;
                 }
                 match make_keyword(&identifier) {
-                    Some(keyword) => Some((Token::Keyword(keyword), len)),
-                    None => Some((Token::Identifier(identifier), len))
+                    Some(keyword) => Some((Token{token:TokenType::Keyword(keyword), pos}, len)),
+                    None => Some((Token{token:TokenType::Identifier(identifier), pos}, len))
                 }
             } else if c.is_digit(10) {
                 let mut imm: i32 = c.to_digit(10).unwrap() as i32;
@@ -119,21 +132,21 @@ fn tokenize_impl(code: &str) -> Option<(Token, usize)> {
                     }
                     len += 1;
                 }
-                Some((Token::Constant(imm), len))
+                Some((Token{token:TokenType::Constant(imm), pos}, len))
             } else if c == '\'' {
                 match chars.next() {
                     Some('\\') => {
                         match chars.next() {
                             Some('\\') => {
                                 if chars.next() == Some('\'') {
-                                    Some((Token::Constant('\\' as i32), 4))
+                                    Some((Token{token:TokenType::Constant('\\' as i32), pos}, 4))
                                 } else {
                                     None
                                 }
                             }
                             Some('\'') => {
                                 if chars.next() == Some('\'') {
-                                    Some((Token::Constant('\'' as i32), 4))
+                                    Some((Token{token:TokenType::Constant('\'' as i32), pos}, 4))
                                 } else {
                                     None
                                 }
@@ -143,7 +156,7 @@ fn tokenize_impl(code: &str) -> Option<(Token, usize)> {
                     }
                     Some(d) => {
                         if chars.next() == Some('\'') {
-                            Some((Token::Constant(d as i32), 3))
+                            Some((Token{token:TokenType::Constant(d as i32), pos}, 3))
                         } else {
                             None
                         }
@@ -153,7 +166,7 @@ fn tokenize_impl(code: &str) -> Option<(Token, usize)> {
             } else {
                 let punc = make_punctuator(c);
                 match punc {
-                    Some(punc) => Some((Token::Punctuator(punc), 1)),
+                    Some(punc) => Some((Token{token:TokenType::Punctuator(punc), pos}, 1)),
                     None => None
                 }
             }
@@ -162,14 +175,18 @@ fn tokenize_impl(code: &str) -> Option<(Token, usize)> {
     }
 }
 
-fn tokenize_loop(block: &str, tokens: &mut Vec<Token>) -> bool {
+fn tokenize_loop(block: &str, pos: Pos, tokens: &mut Vec<Token>) -> bool {
     if block.len() == 0 {
         return true;
     }
-    match tokenize_impl(block) {
+    match tokenize_impl(block, pos) {
         Some((token, seek)) => {
             tokens.push(token);
-            tokenize_loop(block.get(seek..).unwrap(), tokens)
+            tokenize_loop(block.get(seek..).unwrap(), Pos {
+                line: pos.line,
+                block_pos: pos.block_pos,
+                char_pos: pos.char_pos + seek
+            }, tokens)
         }
         None => false
     }
@@ -177,10 +194,16 @@ fn tokenize_loop(block: &str, tokens: &mut Vec<Token>) -> bool {
 
 pub fn tokenize(code: &str) -> Option<Vec<Token>> {
     let mut res: Vec<Token> = Vec::new();
-    for (i, block) in code.split_whitespace().enumerate() {
-        if !tokenize_loop(block, &mut res) {
-            println!("Failed to tokenize at block {}: {}", i, block);
-            return None;
+    for (i, line) in code.split_terminator('\n').enumerate() {
+        for (j, block) in line.split_whitespace().enumerate() {
+            if !tokenize_loop(block, Pos {
+                        line: i,
+                        block_pos: j,
+                        char_pos: 0
+                    }, &mut res) {
+                println!("Failed to tokenize at line {}, block {}: {}", i, j, block);
+                return None;
+            }
         }
     }
     Some(res)
