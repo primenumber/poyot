@@ -38,7 +38,7 @@ pub enum AST {
     Leaf(Leaf)
 }
 
-fn expression(tokens: &[Token]) -> Option<(AST, usize)> {
+fn expression_call(tokens: &[Token]) -> Option<(AST, usize)> {
     let mut itr = tokens.iter();
     match itr.next() {
         Some(Token{token:TokenType::Constant(constant), pos:_}) => Some((AST::Leaf(Leaf::Constant(*constant)), 1)),
@@ -54,6 +54,58 @@ fn expression(tokens: &[Token]) -> Option<(AST, usize)> {
             }
         }
         _ => None
+    }
+}
+
+fn expression_mul(tokens: &[Token]) -> Option<(AST, usize)> {
+    let (mut lhs, mut seek) = expression_call(tokens)?;
+    let mut itr = tokens.iter().skip(seek);
+    loop {
+        match itr.next() {
+            Some(Token{token:TokenType::Punctuator(Punctuator::Star), pos:_}) => {
+                let (rhs, seek2) = expression_call(tokens.get((seek+1)..).unwrap())?;
+                lhs = AST::Node(Node {
+                    op: Operand::Multiply,
+                    children: vec![lhs, rhs]
+                });
+                seek += 1 + seek2;
+            }
+            Some(Token{token:TokenType::Punctuator(Punctuator::Slash), pos:_}) => {
+                let (rhs, seek2) = expression_call(tokens.get((seek+1)..).unwrap())?;
+                lhs = AST::Node(Node {
+                    op: Operand::Division,
+                    children: vec![lhs, rhs]
+                });
+                seek += 1 + seek2;
+            }
+            _ => return Some((lhs, seek))
+        }
+    }
+}
+
+fn expression(tokens: &[Token]) -> Option<(AST, usize)> {
+    let (mut lhs, mut seek) = expression_mul(tokens)?;
+    let mut itr = tokens.iter().skip(seek);
+    loop {
+        match itr.next() {
+            Some(Token{token:TokenType::Punctuator(Punctuator::Plus), pos:_}) => {
+                let (rhs, seek2) = expression_mul(tokens.get((seek+1)..).unwrap())?;
+                lhs = AST::Node(Node {
+                    op: Operand::Add,
+                    children: vec![lhs, rhs]
+                });
+                seek += 1 + seek2;
+            }
+            Some(Token{token:TokenType::Punctuator(Punctuator::Minus), pos:_}) => {
+                let (rhs, seek2) = expression_mul(tokens.get((seek+1)..).unwrap())?;
+                lhs = AST::Node(Node {
+                    op: Operand::Sub,
+                    children: vec![lhs, rhs]
+                });
+                seek += 1 + seek2;
+            }
+            _ => return Some((lhs, seek))
+        }
     }
 }
 
