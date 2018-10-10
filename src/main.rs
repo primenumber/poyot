@@ -1,5 +1,6 @@
 pub mod tokenize;
 pub mod parse;
+pub mod generate;
 
 use std::io;
 use std::io::Read;
@@ -17,6 +18,8 @@ fn main() -> io::Result<()> {
     println!("Tokens = {:?}", tokens);
     let ast = parse::parse(&tokens).expect("Failed to parse");
     println!("AST = {:?}", ast);
+    let prog = generate::generate(&ast).expect("Failed to generate program");
+    println!("Program = {:?}", prog);
 
     Ok(())
 }

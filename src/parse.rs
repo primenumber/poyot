@@ -22,8 +22,8 @@ pub enum Operand {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Node {
-    op: Operand,
-    children: Vec<AST>
+    pub op: Operand,
+    pub children: Vec<AST>
 }
 
 #[derive(Debug, Clone, PartialEq)]
