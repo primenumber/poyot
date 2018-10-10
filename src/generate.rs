@@ -6,29 +6,29 @@ use super::parse::Leaf;
 use std::collections::HashMap;
 
 #[derive(Debug, Clone, PartialEq)]
-enum Value {
+pub enum Value {
     Register(usize),
     Immediate(i32)
 }
 
 #[derive(Debug, Clone, PartialEq)]
-struct Statement {
-    op: Operand,
-    ret: usize,
-    args: Vec<Value>
+pub struct Statement {
+    pub op: Operand,
+    pub ret: usize,
+    pub args: Vec<Value>
 }
 
 #[derive(Debug, Clone, PartialEq)]
-struct Function {
-    name: String,
-    args: Vec<String>,
-    retnum: usize,
-    statements: Vec<Statement>
+pub struct Function {
+    pub name: String,
+    pub args: Vec<String>,
+    pub retnum: usize,
+    pub statements: Vec<Statement>
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Program {
-    funcs: HashMap<String, Function>
+    pub funcs: HashMap<String, Function>
 }
 
 fn expression(ast: &AST, program: &Program,
