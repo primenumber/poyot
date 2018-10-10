@@ -58,6 +58,34 @@ fn expression(ast: &AST, program: &Program,
                         return None;
                     }
                 }
+                Operand::Sub => {
+                    if node.children.len() != 2 {
+                        println!("Sub operation take 2 args, but {} provided",
+                                 node.children.len());
+                        return None;
+                    }
+                }
+                Operand::Multiply => {
+                    if node.children.len() != 2 {
+                        println!("Multiply operation take 2 args, but {} provided",
+                                 node.children.len());
+                        return None;
+                    }
+                }
+                Operand::Division => {
+                    if node.children.len() != 2 {
+                        println!("Division operation take 2 args, but {} provided",
+                                 node.children.len());
+                        return None;
+                    }
+                }
+                Operand::Modulo => {
+                    if node.children.len() != 2 {
+                        println!("Modulo operation take 2 args, but {} provided",
+                                 node.children.len());
+                        return None;
+                    }
+                }
                 _ => return None
             }
             let mut id_vec = Vec::new();

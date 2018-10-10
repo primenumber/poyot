@@ -26,6 +26,13 @@ fn substitute<W: Write>(val: &Value, regcount: usize, writer: &mut BufWriter<W>)
     }
 }
 
+fn bin_op<W: Write>(args: &[Value], regcount: &mut usize, writer: &mut BufWriter<W>) {
+    substitute(&args[0], *regcount, writer);
+    *regcount += 1;
+    substitute(&args[1], *regcount, writer);
+    *regcount += 1;
+}
+
 fn function<W: Write>(func: &Function, start: usize, writer: &mut BufWriter<W>) -> Option<usize> {
     write!(writer, "LABEL func_{}\n", func.name);
     let mut count = 0;
@@ -72,11 +79,29 @@ fn function<W: Write>(func: &Function, start: usize, writer: &mut BufWriter<W>) 
                         regcount += 1;
                     }
                     Operand::Add => {
-                        substitute(&inst.args[0], regcount, writer);
-                        regcount += 1;
-                        substitute(&inst.args[1], regcount, writer);
-                        regcount += 1;
+                        bin_op(&inst.args, &mut regcount, writer);
                         write!(writer, "ADD\n");
+                        regcount -= 1;
+                    }
+                    Operand::Sub => {
+                        bin_op(&inst.args, &mut regcount, writer);
+                        write!(writer, "SUB\n");
+                        regcount -= 1;
+                    }
+                    Operand::Multiply => {
+                        bin_op(&inst.args, &mut regcount, writer);
+                        write!(writer, "MUL\n");
+                        regcount -= 1;
+                    }
+                    Operand::Division => {
+                        bin_op(&inst.args, &mut regcount, writer);
+                        write!(writer, "DIV\n");
+                        regcount -= 1;
+                    }
+                    Operand::Modulo => {
+                        bin_op(&inst.args, &mut regcount, writer);
+                        write!(writer, "MOD\n");
+                        regcount -= 1;
                     }
                     _ => {
                         println!("Unsupported operand: {:?}", inst.op);
