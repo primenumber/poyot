@@ -71,6 +71,13 @@ fn function<W: Write>(func: &Function, start: usize, writer: &mut BufWriter<W>) 
                         substitute(&inst.args[0], regcount, writer);
                         regcount += 1;
                     }
+                    Operand::Add => {
+                        substitute(&inst.args[0], regcount, writer);
+                        regcount += 1;
+                        substitute(&inst.args[1], regcount, writer);
+                        regcount += 1;
+                        write!(writer, "ADD\n");
+                    }
                     _ => {
                         println!("Unsupported operand: {:?}", inst.op);
                         return None;
