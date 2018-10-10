@@ -183,16 +183,15 @@ fn statement_impl(ast: &AST, program: &Program,
     }
 }
 
-fn statement(ast: &AST, program: &Program)
+fn statement(ast: &AST, program: &Program, vars: &mut HashMap<String, usize>)
         -> Option<Vec<Statement>> {
     let mut statement_vec = Vec::<Statement>::new();
-    let mut vars = HashMap::<String, usize>::new();
     match ast {
         AST::Node(node) => {
             match node.op {
                 Operand::Statement => {
                     for child in &node.children {
-                        if !statement_impl(&child, program, &mut vars, &mut statement_vec) {
+                        if !statement_impl(&child, program, vars, &mut statement_vec) {
                             return None;
                         }
                     }
@@ -214,7 +213,11 @@ fn statement(ast: &AST, program: &Program)
 fn function(node: &Node, program: &Program) -> Option<Function> {
     match node.op {
         Operand::FunctionDeclare{ref name, ref args, retnum} => {
-            match statement(&node.children[0], program) {
+            let mut vars = HashMap::<String, usize>::new();
+            for (i, arg) in args.iter().enumerate() {
+                vars.insert(arg.to_string(), i);
+            }
+            match statement(&node.children[0], program, &mut vars) {
                 Some(statements) => Some(Function { name: name.to_string(), args: args.to_vec(), retnum, statements }),
                 None => None
             }
