@@ -42,7 +42,17 @@ fn expression(tokens: &[Token]) -> Option<(AST, usize)> {
     let mut itr = tokens.iter();
     match itr.next() {
         Some(Token{token:TokenType::Constant(constant), pos:_}) => Some((AST::Leaf(Leaf::Constant(*constant)), 1)),
-        Some(Token{token:TokenType::Identifier(identifier), pos:_}) => Some((AST::Leaf(Leaf::Identifier(identifier.to_string())), 1)),
+        Some(Token{token:TokenType::Identifier(identifier), pos:_}) => {
+            match itr.next() {
+                Some(Token{token:TokenType::Punctuator(Punctuator::ParenthesisLeft), pos:_}) => {
+                    match call(tokens, identifier.to_string()) {
+                        Some((ast, seek)) => Some((ast, 2+seek)),
+                        None => None
+                    }
+                }
+                _ => Some((AST::Leaf(Leaf::Identifier(identifier.to_string())), 1))
+            }
+        }
         _ => None
     }
 }
@@ -90,42 +100,56 @@ fn expression_list(tokens: &[Token]) -> Option<(Vec<AST>, usize)> {
     }
 }
 
+fn call(tokens: &[Token], funcname: String) -> Option<(AST, usize)> {
+    let itr = tokens.iter().skip(2);
+    match expression_list(tokens.get(2..).unwrap()) {
+        Some((expressions, seek)) => {
+            let mut itr2 = itr.skip(seek);
+            match itr2.next() {
+                Some(Token{token:TokenType::Punctuator(Punctuator::ParenthesisRight), pos:_}) => {
+                    Some((AST::Node(Node {
+                        op: Operand::Call{name: funcname},
+                        children: expressions
+                    }), seek+1))
+                }
+                Some(other) => {
+                    println!("In call, At {:?}: Unexpected {:?}, expected )", other.pos, other.token);
+                    return None
+                }
+                _ => {
+                    println!("In call, Unexpected EOF, expected )");
+                    return None
+                }
+            }
+        }
+        None => None
+    }
+}
+
 fn statement(tokens: &[Token]) -> Option<(AST, usize)> {
     let mut itr = tokens.iter();
     let left: Leaf;
     match itr.next() {
-        Some(Token{token:TokenType::Identifier(identifier), pos}) => {
+        Some(Token{token:TokenType::Identifier(identifier), pos:_}) => {
             left = Leaf::Identifier(identifier.to_string());
         }
         Some(other) => {
-            println!("At {:?}: Unexpected {:?}, expected identifier", other.pos, other.token);
+            println!("In statement, At {:?}: Unexpected {:?}, expected identifier", other.pos, other.token);
             return None
         }
         _ => {
-            println!("Unexpected EOF, expected identifier");
+            println!("In statement, Unexpected EOF, expected identifier");
             return None
         }
     }
     match itr.next() {
         Some(Token{token:TokenType::Punctuator(Punctuator::Equal), pos:_}) => {
-            let right: Leaf;
-            match itr.next() {
-                Some(Token{token:TokenType::Identifier(identifier), pos}) => {
-                    right = Leaf::Identifier(identifier.to_string());
-                }
-                Some(Token{token:TokenType::Constant(constant), pos}) => {
-                    right = Leaf::Constant(*constant);
-                }
-                Some(other) => {
-                    println!("At {:?}: Unexpected {:?}, expected identifier or constant", other.pos, other.token);
-                    return None
-                }
-                _ => return None
-            }
-            match itr.next() {
+            let (exp, seek) = expression(tokens.get(2..).unwrap())?;
+            let mut itr2 = itr.skip(seek);
+            match itr2.next() {
                 Some(Token{token:TokenType::Punctuator(Punctuator::SemiColon), pos:_}) => {}
                 Some(other) => {
-                    println!("At {:?}: Unexpected {:?}, expected ;", other.pos, other.token);
+                    println!("In statement, At {:?}: Unexpected {:?}, expected ;", other.pos, other.token);
                     return None
                 }
                 _ => return None
@@ -134,50 +158,40 @@ fn statement(tokens: &[Token]) -> Option<(AST, usize)> {
                 op: Operand::Substitute,
                 children: vec![
                     AST::Leaf(left),
-                    AST::Leaf(right)
+                    exp
                 ]
-            }), 4))
+            }), 2+seek+1))
         }
         Some(Token{token:TokenType::Punctuator(Punctuator::ParenthesisLeft), pos:_}) => {
-            match expression_list(tokens.get(2..).unwrap()) {
-                Some((expressions, seek)) => {
+            let funcname = match left {
+                Leaf::Identifier(name) => {
+                    name
+                }
+                _ => return None
+            };
+            match call(tokens, funcname) {
+                Some((node, seek)) => {
                     let mut itr2 = itr.skip(seek);
                     match itr2.next() {
-                        Some(Token{token:TokenType::Punctuator(Punctuator::ParenthesisRight), pos:_}) => {
-                            match itr2.next() {
-                                Some(Token{token:TokenType::Punctuator(Punctuator::SemiColon), pos:_}) => {
-                                    match left {
-                                        Leaf::Identifier(funcname) => {
-                                            Some((AST::Node(Node {
-                                                op: Operand::Call{name: funcname},
-                                                children: expressions
-                                            }), 2+seek+2))
-                                        }
-                                        _ => return None
-                                    }
-                                }
-                                _ => return None
-                            }
+                        Some(Token{token:TokenType::Punctuator(Punctuator::SemiColon), pos:_}) => {
+                            Some((node, 2+seek+1))
                         }
                         Some(other) => {
-                            println!("At {:?}: Unexpected {:?}, expected )", other.pos, other.token);
-                            return None
+                            println!("In statement, At {:?}, Unexpected {:?}, expected ;", other.pos, other.token);
+                            None
                         }
-                        _ => {
-                            println!("Unexpected EOF, expected )");
-                            return None
-                        }
+                        None => None
                     }
                 }
                 None => None
             }
         }
         Some(other) => {
-            println!("At {:?}: Unexpected {:?}, expected = or (", other.pos, other.token);
+            println!("In statement, At {:?}: Unexpected {:?}, expected = or (", other.pos, other.token);
             return None
         }
         _ => {
-            println!("Unexpected EOF, expected = or (");
+            println!("In statement, Unexpected EOF, expected = or (");
             return None
         }
     }
@@ -229,11 +243,11 @@ fn argument_list(tokens: &[Token]) -> Option<(Vec<String>, usize)> {
                         return Some((res, len+1))
                     }
                     Some(other) => {
-                        println!("At {:?}: Unexpected {:?}, expected identifier or )", other.pos, other.token);
+                        println!("In argument_list, At {:?}: Unexpected {:?}, expected identifier or )", other.pos, other.token);
                         return None
                     }
                     _ => {
-                        println!("Unexpected EOF, expected identifier or )");
+                        println!("In argument_list, Unexpected EOF, expected identifier or )");
                         return None
                     }
                 }
@@ -244,11 +258,11 @@ fn argument_list(tokens: &[Token]) -> Option<(Vec<String>, usize)> {
                         return Some((res, len+1))
                     }
                     Some(other) => {
-                        println!("At {:?}: Unexpected {:?}, expected , or )", other.pos, other.token);
+                        println!("In argument_list, At {:?}: Unexpected {:?}, expected , or )", other.pos, other.token);
                         return None
                     }
                     _ => {
-                        println!("Unexpected EOF, expected , or )");
+                        println!("In argument_list, Unexpected EOF, expected , or )");
                         return None
                     }
                 }
@@ -266,11 +280,11 @@ fn declaration(tokens: &[Token]) -> Option<(AST, usize)> {
             match tokens_itr.next() {
                 Some(Token{token:TokenType::Punctuator(Punctuator::BracketLeft), pos:_}) => (),
                 Some(other) => {
-                    println!("At {:?}:Unexpected {:?}, expected {{", other.pos, other.token);
+                    println!("In declaration, At {:?}:Unexpected {:?}, expected {{", other.pos, other.token);
                     return None
                 }
                 _ => {
-                    println!("Unexpected EOF, expected {{");
+                    println!("In declaration, Unexpected EOF, expected {{");
                     return None
                 }
             }

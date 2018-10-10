@@ -97,7 +97,7 @@ fn substitute(children: &Vec<AST>, program: &Program,
                 }
             }
         }
-        AST::Node(node) => {
+        AST::Node(_node) => {
             println!("Unexpected Node, expected identifier or constant");
             None
         }
