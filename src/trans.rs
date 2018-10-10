@@ -33,7 +33,7 @@ fn bin_op<W: Write>(args: &[Value], regcount: &mut usize, writer: &mut BufWriter
     *regcount += 1;
 }
 
-fn function<W: Write>(func: &Function, start: usize, writer: &mut BufWriter<W>) -> Option<usize> {
+fn function<W: Write>(func: &Function, start: usize, program: &Program, writer: &mut BufWriter<W>) -> Option<usize> {
     write!(writer, "LABEL func_{}\n", func.name);
     let mut count = 0;
     match &*func.name {
@@ -64,14 +64,20 @@ fn function<W: Write>(func: &Function, start: usize, writer: &mut BufWriter<W>) 
                 match inst.op {
                     Operand::Call{ref name} => {
                         write!(writer, "PUSH {}\n", start + count);
+                        let mut regcount_tmp = regcount;
                         for arg in &inst.args {
-                            substitute(arg, regcount+1, writer);
-                            regcount += 1;
+                            substitute(arg, regcount_tmp+1, writer);
+                            regcount_tmp += 1;
                         }
                         write!(writer, "JMP func_{}\n", name);
                         write!(writer, "LABEL control_{}\n", start + count);
                         write!(writer, "POP\n");
-                        regcount += 1;
+                        match program.funcs.get(name) {
+                            Some(callee) => {
+                                regcount += callee.retnum;
+                            }
+                            None => return None
+                        }
                         count += 1;
                     }
                     Operand::Substitute => {
@@ -121,7 +127,7 @@ pub fn trans<W: Write>(program: &Program, writer: &mut BufWriter<W>) -> Option<(
     write!(writer, "JMP func_main\n");
     let mut start = 0;
     for (name, func) in program.funcs.iter() {
-        match function(func, start, writer) {
+        match function(func, start, program, writer) {
             Some(count) => {
                 start += count;
             }
