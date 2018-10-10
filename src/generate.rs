@@ -36,6 +36,30 @@ fn expression(ast: &AST, program: &Program,
         -> Option<Value> {
     match ast {
         AST::Node(node) => {
+            match node.op {
+                Operand::Call{name:ref funcname} => {
+                    match program.funcs.get(funcname) {
+                        Some(func) => {
+                            if node.children.len() != func.args.len() {
+                                println!("Function {} expected {} args, but {} provided",
+                                         funcname, func.args.len(), node.children.len());
+                                return None;
+                            }
+                        }
+                        None => {
+                            println!("Undefined function {}", funcname);
+                        }
+                    }
+                }
+                Operand::Add => {
+                    if node.children.len() != 2 {
+                        println!("Add operation take 2 args, but {} provided",
+                                 node.children.len());
+                        return None;
+                    }
+                }
+                _ => return None
+            }
             let mut id_vec = Vec::new();
             for child in &node.children {
                 let id = expression(&child, program, vars, statements)?;
@@ -110,7 +134,7 @@ fn call(name: &str, children: &Vec<AST>, program: &Program,
     match program.funcs.get(name) {
         Some(func) => {
             if func.args.len() != children.len() {
-                println!("Function {}: expected {} args, but {} passed",
+                println!("Function {}: expected {} args, but {} provided",
                          name, func.args.len(), children.len());
                 return None;
             }
