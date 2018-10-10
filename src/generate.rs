@@ -270,11 +270,18 @@ impl Program {
             retnum: 0,
             statements: Vec::new()
         };
+        let halt = Function {
+            name: "halt".to_string(),
+            args: Vec::new(),
+            retnum: 0,
+            statements: Vec::new()
+        };
         let mut funcs = HashMap::<String, Function>::new();
         funcs.insert(getnum.name.clone(), getnum);
         funcs.insert(getchar.name.clone(), getchar);
         funcs.insert(putnum.name.clone(), putnum);
         funcs.insert(putchar.name.clone(), putchar);
+        funcs.insert(halt.name.clone(), halt);
         Program { funcs }
     }
 }
