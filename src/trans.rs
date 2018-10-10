@@ -9,6 +9,7 @@ fn pullup<W: Write>(regcount: usize, reg: usize, writer: &mut BufWriter<W>) {
     write!(writer, "PUSH {}\n", regcount - reg);
     write!(writer, "PUSH -1\n");
     write!(writer, "ROLL\n");
+    write!(writer, "DUP\n");
     write!(writer, "PUSH {}\n", regcount - reg + 1);
     write!(writer, "PUSH 1\n");
     write!(writer, "ROLL\n");
