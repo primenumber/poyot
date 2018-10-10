@@ -32,15 +32,21 @@ fn function<W: Write>(func: &Function, start: usize, writer: &mut BufWriter<W>) 
     match &*func.name {
         "getnum" => {
             write!(writer, "INN\n");
+            write!(writer, "SWAP\n");
+            write!(writer, "JMP return\n");
         }
         "getchar" => {
             write!(writer, "INC\n");
+            write!(writer, "SWAP\n");
+            write!(writer, "JMP return\n");
         }
         "putnum" => {
             write!(writer, "OUTN\n");
+            write!(writer, "JMP return\n");
         }
         "putchar" => {
             write!(writer, "OUTC\n");
+            write!(writer, "JMP return\n");
         }
         "halt" => {
             write!(writer, "HALT\n");
@@ -71,12 +77,10 @@ fn function<W: Write>(func: &Function, start: usize, writer: &mut BufWriter<W>) 
                     }
                 }
             }
+            if func.name == "main" {
+                write!(writer, "HALT\n");
+            }
         }
-    }
-    if func.name == "main" {
-        write!(writer, "HALT\n");
-    } else {
-        write!(writer, "JMP return\n");
     }
     Some(count)
 }
