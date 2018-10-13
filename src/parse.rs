@@ -78,6 +78,14 @@ fn expression_mul(tokens: &[Token]) -> Option<(AST, usize)> {
                 });
                 seek += 1 + seek2;
             }
+            Some(Token{token:TokenType::Punctuator(Punctuator::Percent), pos:_}) => {
+                let (rhs, seek2) = expression_call(tokens.get((seek+1)..).unwrap())?;
+                lhs = AST::Node(Node {
+                    op: Operand::Modulo,
+                    children: vec![lhs, rhs]
+                });
+                seek += 1 + seek2;
+            }
             _ => return Some((lhs, seek))
         }
     }
