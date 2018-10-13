@@ -1,6 +1,6 @@
 use super::parse::AST;
 use super::parse::Node;
-use super::parse::Operand;
+use super::parse::Operator;
 use super::parse::Leaf;
 
 use std::collections::HashMap;
@@ -13,7 +13,7 @@ pub enum Value {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Statement {
-    pub op: Operand,
+    pub op: Operator,
     pub ret: usize,
     pub args: Vec<Value>
 }
@@ -37,7 +37,7 @@ fn expression(ast: &AST, program: &Program,
     match ast {
         AST::Node(node) => {
             match node.op {
-                Operand::Call{name:ref funcname} => {
+                Operator::Call{name:ref funcname} => {
                     match program.funcs.get(funcname) {
                         Some(func) => {
                             if node.children.len() != func.args.len() {
@@ -51,35 +51,35 @@ fn expression(ast: &AST, program: &Program,
                         }
                     }
                 }
-                Operand::Add => {
+                Operator::Add => {
                     if node.children.len() != 2 {
                         println!("Add operation take 2 args, but {} provided",
                                  node.children.len());
                         return None;
                     }
                 }
-                Operand::Sub => {
+                Operator::Sub => {
                     if node.children.len() != 2 {
                         println!("Sub operation take 2 args, but {} provided",
                                  node.children.len());
                         return None;
                     }
                 }
-                Operand::Multiply => {
+                Operator::Multiply => {
                     if node.children.len() != 2 {
                         println!("Multiply operation take 2 args, but {} provided",
                                  node.children.len());
                         return None;
                     }
                 }
-                Operand::Division => {
+                Operator::Division => {
                     if node.children.len() != 2 {
                         println!("Division operation take 2 args, but {} provided",
                                  node.children.len());
                         return None;
                     }
                 }
-                Operand::Modulo => {
+                Operator::Modulo => {
                     if node.children.len() != 2 {
                         println!("Modulo operation take 2 args, but {} provided",
                                  node.children.len());
@@ -136,7 +136,7 @@ fn substitute(children: &Vec<AST>, program: &Program,
                     let exp_id = expression(&children[1], program, vars, statements)?;
                     let id = statements.len();
                     statements.push(Statement {
-                        op: Operand::Substitute,
+                        op: Operator::Substitute,
                         ret: id,
                         args: vec![exp_id; 1]
                     });
@@ -173,7 +173,7 @@ fn call(name: &str, children: &Vec<AST>, program: &Program,
             }
             let id = statements.len();
             statements.push(Statement {
-                op: Operand::Call{name:name.to_string()},
+                op: Operator::Call{name:name.to_string()},
                 ret: id,
                 args: id_vec
             });
@@ -192,14 +192,14 @@ fn statement_impl(ast: &AST, program: &Program,
     match ast {
         AST::Node(node) => {
             match node.op {
-                Operand::Substitute => {
+                Operator::Substitute => {
                     substitute(&node.children, program, vars, statements).is_some()
                 }
-                Operand::Call{ref name} => {
+                Operator::Call{ref name} => {
                     call(&name, &node.children, program, vars, statements).is_some()
                 }
                 _ => {
-                    println!("Unknwon operand: {:?}", node.op);
+                    println!("Unknwon operator: {:?}", node.op);
                     false
                 }
             }
@@ -217,7 +217,7 @@ fn statement(ast: &AST, program: &Program, vars: &mut HashMap<String, usize>)
     match ast {
         AST::Node(node) => {
             match node.op {
-                Operand::Statement => {
+                Operator::Statement => {
                     for child in &node.children {
                         if !statement_impl(&child, program, vars, &mut statement_vec) {
                             return None;
@@ -226,7 +226,7 @@ fn statement(ast: &AST, program: &Program, vars: &mut HashMap<String, usize>)
                     Some(statement_vec)
                 }
                 _ => {
-                    println!("Unexpected operand: {:?}, expected Statement", node.op);
+                    println!("Unexpected operator: {:?}, expected Statement", node.op);
                     None
                 }
             }
@@ -240,7 +240,7 @@ fn statement(ast: &AST, program: &Program, vars: &mut HashMap<String, usize>)
 
 fn function(node: &Node, program: &Program) -> Option<Function> {
     match node.op {
-        Operand::FunctionDeclare{ref name, ref args, retnum} => {
+        Operator::FunctionDeclare{ref name, ref args, retnum} => {
             let mut vars = HashMap::<String, usize>::new();
             for (i, arg) in args.iter().enumerate() {
                 vars.insert(arg.to_string(), i);
@@ -251,7 +251,7 @@ fn function(node: &Node, program: &Program) -> Option<Function> {
             }
         }
         _ => {
-            println!("Unexpected operand: {:?}, expected FunctionDeclare", node.op);
+            println!("Unexpected operator: {:?}, expected FunctionDeclare", node.op);
             None
         }
     }
@@ -322,7 +322,7 @@ pub fn generate(ast: &AST) -> Option<Program> {
     match ast {
         AST::Node(node) => {
             match node.op {
-                Operand::Declare => {
+                Operator::Declare => {
                     for child in &node.children {
                         if !declare(child, &mut program) {
                             return None;
@@ -331,7 +331,7 @@ pub fn generate(ast: &AST) -> Option<Program> {
                     Some(program)
                 }
                 _ => {
-                    println!("Unexpected operand {:?}, expected Declare", node.op);
+                    println!("Unexpected operator {:?}, expected Declare", node.op);
                     None
                 }
             }

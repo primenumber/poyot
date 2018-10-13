@@ -1,7 +1,7 @@
 use super::generate::Program;
 use super::generate::Function;
 use super::generate::Value;
-use super::parse::Operand;
+use super::parse::Operator;
 
 use std::io::{BufWriter, Write};
 
@@ -62,7 +62,7 @@ fn function<W: Write>(func: &Function, start: usize, program: &Program, writer: 
             let mut regcount = func.args.len();
             for inst in &func.statements {
                 match inst.op {
-                    Operand::Call{ref name} => {
+                    Operator::Call{ref name} => {
                         write!(writer, "PUSH {}\n", start + count);
                         let mut regcount_tmp = regcount;
                         for arg in &inst.args {
@@ -80,37 +80,37 @@ fn function<W: Write>(func: &Function, start: usize, program: &Program, writer: 
                         }
                         count += 1;
                     }
-                    Operand::Substitute => {
+                    Operator::Substitute => {
                         substitute(&inst.args[0], regcount, writer);
                         regcount += 1;
                     }
-                    Operand::Add => {
+                    Operator::Add => {
                         bin_op(&inst.args, &mut regcount, writer);
                         write!(writer, "ADD\n");
                         regcount -= 1;
                     }
-                    Operand::Sub => {
+                    Operator::Sub => {
                         bin_op(&inst.args, &mut regcount, writer);
                         write!(writer, "SUB\n");
                         regcount -= 1;
                     }
-                    Operand::Multiply => {
+                    Operator::Multiply => {
                         bin_op(&inst.args, &mut regcount, writer);
                         write!(writer, "MUL\n");
                         regcount -= 1;
                     }
-                    Operand::Division => {
+                    Operator::Division => {
                         bin_op(&inst.args, &mut regcount, writer);
                         write!(writer, "DIV\n");
                         regcount -= 1;
                     }
-                    Operand::Modulo => {
+                    Operator::Modulo => {
                         bin_op(&inst.args, &mut regcount, writer);
                         write!(writer, "MOD\n");
                         regcount -= 1;
                     }
                     _ => {
-                        println!("Unsupported operand: {:?}", inst.op);
+                        println!("Unsupported operator: {:?}", inst.op);
                         return None;
                     }
                 }

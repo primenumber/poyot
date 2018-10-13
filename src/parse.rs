@@ -4,7 +4,7 @@ use super::tokenize::Punctuator;
 use super::tokenize::Keyword;
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum Operand {
+pub enum Operator {
     Add,
     Sub,
     Multiply,
@@ -22,7 +22,7 @@ pub enum Operand {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Node {
-    pub op: Operand,
+    pub op: Operator,
     pub children: Vec<AST>
 }
 
@@ -65,7 +65,7 @@ fn expression_mul(tokens: &[Token]) -> Option<(AST, usize)> {
             Some(Token{token:TokenType::Punctuator(Punctuator::Star), pos:_}) => {
                 let (rhs, seek2) = expression_call(tokens.get((seek+1)..).unwrap())?;
                 lhs = AST::Node(Node {
-                    op: Operand::Multiply,
+                    op: Operator::Multiply,
                     children: vec![lhs, rhs]
                 });
                 seek += 1 + seek2;
@@ -73,7 +73,7 @@ fn expression_mul(tokens: &[Token]) -> Option<(AST, usize)> {
             Some(Token{token:TokenType::Punctuator(Punctuator::Slash), pos:_}) => {
                 let (rhs, seek2) = expression_call(tokens.get((seek+1)..).unwrap())?;
                 lhs = AST::Node(Node {
-                    op: Operand::Division,
+                    op: Operator::Division,
                     children: vec![lhs, rhs]
                 });
                 seek += 1 + seek2;
@@ -81,7 +81,7 @@ fn expression_mul(tokens: &[Token]) -> Option<(AST, usize)> {
             Some(Token{token:TokenType::Punctuator(Punctuator::Percent), pos:_}) => {
                 let (rhs, seek2) = expression_call(tokens.get((seek+1)..).unwrap())?;
                 lhs = AST::Node(Node {
-                    op: Operand::Modulo,
+                    op: Operator::Modulo,
                     children: vec![lhs, rhs]
                 });
                 seek += 1 + seek2;
@@ -99,7 +99,7 @@ fn expression(tokens: &[Token]) -> Option<(AST, usize)> {
             Some(Token{token:TokenType::Punctuator(Punctuator::Plus), pos:_}) => {
                 let (rhs, seek2) = expression_mul(tokens.get((seek+1)..).unwrap())?;
                 lhs = AST::Node(Node {
-                    op: Operand::Add,
+                    op: Operator::Add,
                     children: vec![lhs, rhs]
                 });
                 seek += 1 + seek2;
@@ -107,7 +107,7 @@ fn expression(tokens: &[Token]) -> Option<(AST, usize)> {
             Some(Token{token:TokenType::Punctuator(Punctuator::Minus), pos:_}) => {
                 let (rhs, seek2) = expression_mul(tokens.get((seek+1)..).unwrap())?;
                 lhs = AST::Node(Node {
-                    op: Operand::Sub,
+                    op: Operator::Sub,
                     children: vec![lhs, rhs]
                 });
                 seek += 1 + seek2;
@@ -168,7 +168,7 @@ fn call(tokens: &[Token], funcname: String) -> Option<(AST, usize)> {
             match itr2.next() {
                 Some(Token{token:TokenType::Punctuator(Punctuator::ParenthesisRight), pos:_}) => {
                     Some((AST::Node(Node {
-                        op: Operand::Call{name: funcname},
+                        op: Operator::Call{name: funcname},
                         children: expressions
                     }), seek+1))
                 }
@@ -215,7 +215,7 @@ fn statement(tokens: &[Token]) -> Option<(AST, usize)> {
                 _ => return None
             }
             Some((AST::Node(Node {
-                op: Operand::Substitute,
+                op: Operator::Substitute,
                 children: vec![
                     AST::Leaf(left),
                     exp
@@ -277,7 +277,7 @@ fn statements_loop(tokens: &[Token], node: &mut Node) -> Option<usize> {
 
 fn statement_list(tokens: &[Token]) -> Option<(AST, usize)> {
     let mut res = Node {
-        op: Operand::Statement,
+        op: Operator::Statement,
         children: Vec::new()
     };
     match statements_loop(tokens, &mut res) {
@@ -377,7 +377,7 @@ fn declaration(tokens: &[Token]) -> Option<(AST, usize)> {
                 _ => return None
             }
             let res = AST::Node(Node {
-                op: Operand::FunctionDeclare{
+                op: Operator::FunctionDeclare{
                     name: name.to_string(), args: args, retnum: *retnum as usize
                 },
                 children: vec![statements; 1]
@@ -406,7 +406,7 @@ fn declarations_loop(tokens: &[Token], res: &mut Node, count: u32) -> bool {
 
 pub fn parse(tokens: &[Token]) -> Option<AST> {
     let mut res = Node {
-        op: Operand::Declare,
+        op: Operator::Declare,
         children: Vec::new()
     };
     if declarations_loop(tokens, &mut res, 0) {
