@@ -119,12 +119,19 @@ fn function<W: Write>(func: &Function, start: usize, program: &Program, writer: 
                             write!(writer, "JMP block_{}_{}\n", func.name, jump_to);
                         }
                         Operator::Return => {
-                            substitute(&inst.args[0], 0, &mut regs, writer);
-                            for i in 1..regs.len() {
-                                write!(writer, "SWAP\n");
+                            let retnum = func.retnum;
+                            for arg in &inst.args {
+                                substitute(arg, 0, &mut regs, writer);
+                            }
+                            for i in retnum..regs.len() {
+                                write!(writer, "PUSH {}\n", retnum+1);
+                                write!(writer, "PUSH 1\n");
+                                write!(writer, "ROLL\n");
                                 write!(writer, "POP\n");
                             }
-                            write!(writer, "SWAP\n");
+                            write!(writer, "PUSH {}\n", retnum+1);
+                            write!(writer, "PUSH 1\n");
+                            write!(writer, "ROLL\n");
                             write!(writer, "JMP return\n");
                         }
                         Operator::Substitute => {
