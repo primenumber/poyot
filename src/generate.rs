@@ -226,13 +226,17 @@ fn if_op(children: &Vec<AST>, program: &Program,
          vars: &mut HashMap<String, usize>, basicblocks: &mut Vec<BasicBlock>,
          regcount: usize) -> bool {
     if children.len() < 2 {
+        println!("If need 2 or 3 children");
         return false;
     }
     let id = match expression(&children[0], program, vars,
                               &mut basicblocks.last_mut().unwrap().statements,
                               regcount) {
         Some(id) => id,
-        None => return false
+        None => {
+            println!("Invalid expression");
+            return false
+        }
     };
     let newregcount = regcount + basicblocks.last().unwrap().statements.len();
     let index = match statement(&children[1], program, vars, newregcount) {
@@ -258,7 +262,11 @@ fn if_op(children: &Vec<AST>, program: &Program,
             basicblocks.get_mut(offset-1).unwrap().nexts.push(jump_to);
             basicblocks.len() - 1
         }
-        None => return false
+        None => {
+            println!("Invalid statements");
+            println!("{:?}", children[1]);
+            return false
+        }
     };
     if children.len() == 3 {
         match statement(&children[2], program, vars, newregcount) {
@@ -282,7 +290,10 @@ fn if_op(children: &Vec<AST>, program: &Program,
                 let jump_to = basicblocks.len();
                 basicblocks.get_mut(offset-1).unwrap().nexts.push(jump_to);
             }
-            None => return false
+            None => {
+                println!("Invalid statements");
+                return false
+            }
         }
     }
     let jump_to = basicblocks.len();
@@ -439,7 +450,10 @@ fn pre_declare(ast: &AST, program: &mut Program) -> bool {
                     program.funcs.insert(func.name.clone(), func);
                     true
                 }
-                None => false
+                None => {
+                    println!("Invalid function declare");
+                    false
+                }
             }
         }
         AST::Leaf(_leaf) => {
@@ -457,7 +471,10 @@ fn declare(ast: &AST, program: &mut Program) -> bool {
                     program.funcs.insert(func.name.clone(), func);
                     true
                 }
-                None => false
+                None => {
+                    println!("Invalid function declare");
+                    false
+                }
             }
         }
         AST::Leaf(_leaf) => {
