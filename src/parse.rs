@@ -11,8 +11,11 @@ pub enum Operator {
     Division,
     Modulo,
     Substitute,
+    Equal,
     If,
     Call{name: String},
+    Return,
+    Jump,
     Do,
     Expression,
     Statement,
@@ -91,7 +94,7 @@ fn expression_mul(tokens: &[Token]) -> Option<(AST, usize)> {
     }
 }
 
-fn expression(tokens: &[Token]) -> Option<(AST, usize)> {
+fn expression_add(tokens: &[Token]) -> Option<(AST, usize)> {
     let (mut lhs, mut seek) = expression_mul(tokens)?;
     let mut itr = tokens.iter().skip(seek);
     loop {
@@ -108,6 +111,24 @@ fn expression(tokens: &[Token]) -> Option<(AST, usize)> {
                 let (rhs, seek2) = expression_mul(tokens.get((seek+1)..).unwrap())?;
                 lhs = AST::Node(Node {
                     op: Operator::Sub,
+                    children: vec![lhs, rhs]
+                });
+                seek += 1 + seek2;
+            }
+            _ => return Some((lhs, seek))
+        }
+    }
+}
+
+fn expression(tokens: &[Token]) -> Option<(AST, usize)> {
+    let (mut lhs, mut seek) = expression_add(tokens)?;
+    let mut itr = tokens.iter().skip(seek);
+    loop {
+        match itr.next() {
+            Some(Token{token:TokenType::Punctuator(Punctuator::DoubleEqual), pos:_}) => {
+                let (rhs, seek2) = expression_add(tokens.get((seek+1)..).unwrap())?;
+                lhs = AST::Node(Node {
+                    op: Operator::Equal,
                     children: vec![lhs, rhs]
                 });
                 seek += 1 + seek2;
@@ -186,12 +207,128 @@ fn call(tokens: &[Token], funcname: String) -> Option<(AST, usize)> {
     }
 }
 
+fn if_statement(tokens: &[Token]) -> Option<(AST, usize)> {
+    let mut itr = tokens.iter();
+    match itr.next() {
+        Some(Token{token:TokenType::Keyword(Keyword::IF), pos:_}) => {}
+        Some(other) => {
+            println!("In if_statement, At {:?}: Unexpected {:?}, expected if", other.pos, other.token);
+            return None
+        }
+        None => {
+            println!("In if_statement, Unexpected EOF, expected if");
+            return None
+        }
+    }
+    let (cond, seek) = expression(tokens.get(1..).unwrap())?;
+    let mut itr2 = itr.skip(seek);
+    match itr2.next() {
+        Some(Token{token:TokenType::Punctuator(Punctuator::BraceLeft), pos:_}) => {}
+        Some(other) => {
+            println!("In if_statement, At {:?}: Unexpected {:?}, expected {{", other.pos, other.token);
+            return None
+        }
+        None => {
+            println!("In if_statement, Unexpected EOF, expected {{");
+            return None
+        }
+    }
+    let (statements, seek2) = statement_list(tokens.get((1+seek+1)..).unwrap())?;
+    let mut itr3 = itr2.skip(seek2);
+    match itr3.next() {
+        Some(Token{token:TokenType::Punctuator(Punctuator::BraceRight), pos:_}) => {}
+        Some(other) => {
+            println!("In if_statement, At {:?}: Unexpected {:?}, expected }}", other.pos, other.token);
+            return None
+        }
+        None => {
+            println!("In if_statement, Unexpected EOF, expected }}");
+            return None
+        }
+    }
+    match itr3.next() {
+        Some(Token{token:TokenType::Keyword(Keyword::ELSIF), pos:_}) => {
+            println!("Unsopported keyword: elsif");
+            return None;
+        }
+        Some(Token{token:TokenType::Keyword(Keyword::ELSE), pos:_}) => {
+            match itr3.next() {
+                Some(Token{token:TokenType::Punctuator(Punctuator::BraceLeft), pos:_}) => {}
+                Some(other) => {
+                    println!("In if_statement, At {:?}: Unexpected {:?}, expected {{", other.pos, other.token);
+                    return None;
+                }
+                None => {
+                    println!("In if_statement, Unexpected EOF, expected {{");
+                    return None;
+                }
+            }
+            let (else_statements, seek3) = statement_list(tokens.get((1+seek+1+seek2+3)..).unwrap())?;
+            let mut itr4 = itr3.skip(seek3);
+            match itr4.next() {
+                Some(Token{token:TokenType::Punctuator(Punctuator::BraceRight), pos:_}) => {}
+                Some(other) => {
+                    println!("In if_statement, At {:?}: Unexpected {:?}, expected }}", other.pos, other.token);
+                    return None
+                }
+                None => {
+                    println!("In if_statement, Unexpected EOF, expected }}");
+                    return None
+                }
+            }
+            Some((AST::Node(Node {
+                op: Operator::If,
+                children: vec![cond, statements, else_statements]
+            }), 1+seek+1+seek2+3+seek3+1))
+        }
+        _ => {
+            Some((AST::Node(Node {
+                op: Operator::If,
+                children: vec![cond, statements]
+            }), 1+seek+1+seek2+3))
+        }
+    }
+}
+
+fn return_statement(tokens: &[Token]) -> Option<(AST, usize)> {
+    if tokens.len() < 1 {
+        println!("In return_statement, Unexpected EOF, expected return");
+        return None;
+    }
+    if tokens[0].token != TokenType::Keyword(Keyword::RETURN) {
+        println!("In return_statement, At {:?}: Unexpected {:?}, expected return", tokens[0].pos, tokens[0].token);
+    }
+    let (ast, seek) = expression(tokens.get(1..).unwrap())?;
+    let mut itr = tokens.iter().skip(1+seek);
+    match itr.next() {
+        Some(Token{token:TokenType::Punctuator(Punctuator::SemiColon), pos:_}) => {}
+        Some(other) => {
+            println!("In return_statement, At {:?}: Unexpected {:?}, expected ;", other.pos, other.token);
+            return None;
+        }
+        None => {
+            println!("In return_statement, Unexpected EOF, expected ;");
+            return None;
+        }
+    }
+    Some((AST::Node(Node {
+        op: Operator::Return,
+        children: vec![ast]
+    }), 1+seek+1))
+}
+
 fn statement(tokens: &[Token]) -> Option<(AST, usize)> {
     let mut itr = tokens.iter();
     let left: Leaf;
     match itr.next() {
         Some(Token{token:TokenType::Identifier(identifier), pos:_}) => {
             left = Leaf::Identifier(identifier.to_string());
+        }
+        Some(Token{token:TokenType::Keyword(Keyword::IF), pos:_}) => {
+            return if_statement(tokens);
+        }
+        Some(Token{token:TokenType::Keyword(Keyword::RETURN), pos:_}) => {
+            return return_statement(tokens);
         }
         Some(other) => {
             println!("In statement, At {:?}: Unexpected {:?}, expected identifier", other.pos, other.token);

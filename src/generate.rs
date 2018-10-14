@@ -5,17 +5,24 @@ use super::parse::Leaf;
 
 use std::collections::HashMap;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Value {
     Register(usize),
-    Immediate(i32)
+    Immediate(i32),
+    Label(usize),
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Statement {
     pub op: Operator,
-    pub ret: usize,
+    pub ret: Option<usize>,
     pub args: Vec<Value>
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct BasicBlock {
+    pub statements: Vec<Statement>,
+    pub nexts: Vec<usize>
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -23,7 +30,7 @@ pub struct Function {
     pub name: String,
     pub args: Vec<String>,
     pub retnum: usize,
-    pub statements: Vec<Statement>
+    pub basicblocks: Vec<BasicBlock>
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -32,7 +39,8 @@ pub struct Program {
 }
 
 fn expression(ast: &AST, program: &Program,
-              vars: &HashMap<String, usize>, statements: &mut Vec<Statement>)
+              vars: &HashMap<String, usize>, statements: &mut Vec<Statement>,
+              regcount: usize)
         -> Option<Value> {
     match ast {
         AST::Node(node) => {
@@ -86,17 +94,27 @@ fn expression(ast: &AST, program: &Program,
                         return None;
                     }
                 }
-                _ => return None
+                Operator::Equal => {
+                    if node.children.len() != 2 {
+                        println!("Equal operation take 2 args, but {} provided",
+                                 node.children.len());
+                        return None;
+                    }
+                }
+                _ => {
+                    println!("Unsupported operation {:?}", node.op);
+                    return None
+                }
             }
             let mut id_vec = Vec::new();
             for child in &node.children {
-                let id = expression(&child, program, vars, statements)?;
+                let id = expression(&child, program, vars, statements, regcount)?;
                 id_vec.push(id);
             }
-            let id = statements.len();
+            let id = statements.len() + regcount;
             statements.push(Statement {
                 op: node.op.clone(),
-                ret: id,
+                ret: Some(id),
                 args: id_vec
             });
             Some(Value::Register(id))
@@ -123,7 +141,8 @@ fn expression(ast: &AST, program: &Program,
 }
 
 fn substitute(children: &Vec<AST>, program: &Program,
-              vars: &mut HashMap<String, usize>, statements: &mut Vec<Statement>) 
+              vars: &mut HashMap<String, usize>,
+              statements: &mut Vec<Statement>, regcount: usize) 
         -> Option<Value> {
     match &children[0] {
         AST::Leaf(leaf) => {
@@ -133,11 +152,12 @@ fn substitute(children: &Vec<AST>, program: &Program,
                         println!("Variable {} is already defined.", lhs);
                         return None;
                     }
-                    let exp_id = expression(&children[1], program, vars, statements)?;
+                    let exp_id = expression(&children[1], program, vars,
+                                            statements, regcount)?;
                     let id = statements.len();
                     statements.push(Statement {
                         op: Operator::Substitute,
-                        ret: id,
+                        ret: Some(id),
                         args: vec![exp_id; 1]
                     });
                     vars.insert(lhs.to_string(), id);
@@ -157,7 +177,8 @@ fn substitute(children: &Vec<AST>, program: &Program,
 }
 
 fn call(name: &str, children: &Vec<AST>, program: &Program,
-        vars: &HashMap<String, usize>, statements: &mut Vec<Statement>)
+        vars: &HashMap<String, usize>, statements: &mut Vec<Statement>,
+        regcount: usize)
         -> Option<Value> {
     match program.funcs.get(name) {
         Some(func) => {
@@ -168,13 +189,14 @@ fn call(name: &str, children: &Vec<AST>, program: &Program,
             }
             let mut id_vec = Vec::new();
             for child in children {
-                let id = expression(child, program, vars, statements)?;
+                let id = expression(child, program, vars, statements,
+                                    regcount)?;
                 id_vec.push(id);
             }
             let id = statements.len();
             statements.push(Statement {
                 op: Operator::Call{name:name.to_string()},
-                ret: id,
+                ret: Some(id),
                 args: id_vec
             });
             Some(Value::Register(id))
@@ -186,17 +208,122 @@ fn call(name: &str, children: &Vec<AST>, program: &Program,
     }
 }
 
+fn if_op(children: &Vec<AST>, program: &Program,
+         vars: &mut HashMap<String, usize>, basicblocks: &mut Vec<BasicBlock>,
+         regcount: usize) -> bool {
+    if children.len() < 2 {
+        return false;
+    }
+    let id = match expression(&children[0], program, vars,
+                              &mut basicblocks.last_mut().unwrap().statements,
+                              regcount) {
+        Some(id) => id,
+        None => return false
+    };
+    let newregcount = regcount + basicblocks.last().unwrap().statements.len();
+    let index = match statement(&children[1], program, vars, newregcount) {
+        Some(vb) => {
+            basicblocks.last_mut().unwrap().statements.push(Statement {
+                op: Operator::If,
+                ret: None,
+                args: vec![id]
+            });
+            let offset = basicblocks.len();
+            basicblocks.last_mut().unwrap().nexts.push(offset);
+            for b in vb {
+                let mut nexts = Vec::new();
+                for bid in b.nexts {
+                    nexts.push(bid + offset);
+                }
+                basicblocks.push(BasicBlock {
+                    statements: b.statements,
+                    nexts
+                });
+            }
+            let jump_to = basicblocks.len();
+            basicblocks.get_mut(offset-1).unwrap().nexts.push(jump_to);
+            basicblocks.len() - 1
+        }
+        None => return false
+    };
+    if children.len() == 3 {
+        match statement(&children[2], program, vars, newregcount) {
+            Some(vb) => {
+                basicblocks.last_mut().unwrap().statements.push(Statement {
+                    op: Operator::Jump,
+                    ret: None,
+                    args: Vec::new()
+                });
+                let offset = basicblocks.len();
+                for b in vb {
+                    let mut nexts = Vec::new();
+                    for bid in b.nexts {
+                        nexts.push(bid + offset);
+                    }
+                    basicblocks.push(BasicBlock {
+                        statements: b.statements,
+                        nexts
+                    });
+                }
+                let jump_to = basicblocks.len();
+                basicblocks.get_mut(offset-1).unwrap().nexts.push(jump_to);
+            }
+            None => return false
+        }
+    }
+    let jump_to = basicblocks.len();
+    basicblocks.last_mut().unwrap().nexts.push(jump_to);
+    basicblocks.push(BasicBlock {
+        statements: Vec::new(),
+        nexts: Vec::new()
+    });
+    true
+}
+
+fn return_op(children: &Vec<AST>, program: &Program,
+             vars: &mut HashMap<String, usize>, statements: &mut Vec<Statement>,
+             regcount: usize) -> bool {
+    if children.len() != 1 {
+        return false;
+    }
+    let id = match expression(&children[0], program, vars,
+                              statements, regcount) {
+        Some(id) => id,
+        None => return false
+    };
+    statements.push(Statement {
+        op: Operator::Return,
+        ret: None,
+        args: vec![id]
+    });
+    true
+}
+
+
 fn statement_impl(ast: &AST, program: &Program,
-                  vars: &mut HashMap<String, usize>, statements: &mut Vec<Statement>)
+                  vars: &mut HashMap<String, usize>,
+                  basicblocks: &mut Vec<BasicBlock>, regcount: usize)
         -> bool {
     match ast {
         AST::Node(node) => {
             match node.op {
                 Operator::Substitute => {
-                    substitute(&node.children, program, vars, statements).is_some()
+                    substitute(&node.children, program, vars,
+                               &mut basicblocks.last_mut().unwrap().statements,
+                               regcount).is_some()
                 }
                 Operator::Call{ref name} => {
-                    call(&name, &node.children, program, vars, statements).is_some()
+                    call(&name, &node.children, program, vars,
+                         &mut basicblocks.last_mut().unwrap().statements,
+                         regcount).is_some()
+                }
+                Operator::If => {
+                    if_op(&node.children, program, vars, basicblocks, regcount)
+                }
+                Operator::Return => {
+                    return_op(&node.children, program, vars,
+                              &mut basicblocks.last_mut().unwrap().statements,
+                              regcount)
                 }
                 _ => {
                     println!("Unknwon operator: {:?}", node.op);
@@ -211,19 +338,23 @@ fn statement_impl(ast: &AST, program: &Program,
     }
 }
 
-fn statement(ast: &AST, program: &Program, vars: &mut HashMap<String, usize>)
-        -> Option<Vec<Statement>> {
-    let mut statement_vec = Vec::<Statement>::new();
+fn statement(ast: &AST, program: &Program,
+             vars: &mut HashMap<String, usize>, regcount: usize)
+        -> Option<Vec<BasicBlock>> {
+    let mut basicblocks = vec![BasicBlock {
+        statements: Vec::new(),
+        nexts: Vec::new()
+    }];
     match ast {
         AST::Node(node) => {
             match node.op {
                 Operator::Statement => {
                     for child in &node.children {
-                        if !statement_impl(&child, program, vars, &mut statement_vec) {
+                        if !statement_impl(&child, program, vars, &mut basicblocks, regcount) {
                             return None;
                         }
                     }
-                    Some(statement_vec)
+                    Some(basicblocks)
                 }
                 _ => {
                     println!("Unexpected operator: {:?}, expected Statement", node.op);
@@ -238,6 +369,18 @@ fn statement(ast: &AST, program: &Program, vars: &mut HashMap<String, usize>)
     }
 }
 
+fn pre_declare_function(node: &Node, program: &Program) -> Option<Function> {
+    match node.op {
+        Operator::FunctionDeclare{ref name, ref args, retnum} => {
+            Some(Function { name: name.to_string(), args: args.to_vec(), retnum, basicblocks: Vec::new() })
+        }
+        _ => {
+            println!("Unexpected operator: {:?}, expected FunctionDeclare", node.op);
+            None
+        }
+    }
+}
+
 fn function(node: &Node, program: &Program) -> Option<Function> {
     match node.op {
         Operator::FunctionDeclare{ref name, ref args, retnum} => {
@@ -245,14 +388,33 @@ fn function(node: &Node, program: &Program) -> Option<Function> {
             for (i, arg) in args.iter().enumerate() {
                 vars.insert(arg.to_string(), i);
             }
-            match statement(&node.children[0], program, &mut vars) {
-                Some(statements) => Some(Function { name: name.to_string(), args: args.to_vec(), retnum, statements }),
+            let regcount = args.len();
+            match statement(&node.children[0], program, &mut vars, regcount) {
+                Some(basicblocks) => Some(Function { name: name.to_string(), args: args.to_vec(), retnum, basicblocks }),
                 None => None
             }
         }
         _ => {
             println!("Unexpected operator: {:?}, expected FunctionDeclare", node.op);
             None
+        }
+    }
+}
+
+fn pre_declare(ast: &AST, program: &mut Program) -> bool {
+    match ast {
+        AST::Node(node) => {
+            match pre_declare_function(node, program) {
+                Some(func) => {
+                    program.funcs.insert(func.name.clone(), func);
+                    true
+                }
+                None => false
+            }
+        }
+        AST::Leaf(_leaf) => {
+            println!("Invalid identifier or constant");
+            false
         }
     }
 }
@@ -281,31 +443,31 @@ impl Program {
             name: "getnum".to_string(),
             args: Vec::new(),
             retnum: 1,
-            statements: Vec::new()
+            basicblocks: Vec::new()
         };
         let getchar = Function {
             name: "getchar".to_string(),
             args: Vec::new(),
             retnum: 1,
-            statements: Vec::new()
+            basicblocks: Vec::new()
         };
         let putnum = Function {
             name: "putnum".to_string(),
             args: vec!["x".to_string()],
             retnum: 0,
-            statements: Vec::new()
+            basicblocks: Vec::new()
         };
         let putchar = Function {
             name: "putchar".to_string(),
             args: vec!["x".to_string()],
             retnum: 0,
-            statements: Vec::new()
+            basicblocks: Vec::new()
         };
         let halt = Function {
             name: "halt".to_string(),
             args: Vec::new(),
             retnum: 0,
-            statements: Vec::new()
+            basicblocks: Vec::new()
         };
         let mut funcs = HashMap::<String, Function>::new();
         funcs.insert(getnum.name.clone(), getnum);
@@ -323,6 +485,11 @@ pub fn generate(ast: &AST) -> Option<Program> {
         AST::Node(node) => {
             match node.op {
                 Operator::Declare => {
+                    for child in &node.children {
+                        if !pre_declare(child, &mut program) {
+                            return None;
+                        }
+                    }
                     for child in &node.children {
                         if !declare(child, &mut program) {
                             return None;

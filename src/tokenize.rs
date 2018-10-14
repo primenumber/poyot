@@ -23,6 +23,7 @@ pub enum Punctuator {
     Slash,
     Percent,
     Equal,
+    DoubleEqual,
     SemiColon,
     LessThan,
     Greater
@@ -92,7 +93,7 @@ fn make_punctuator(punctuator: char) -> Option<Punctuator> {
 }
 
 fn tokenize_impl(code: &str, pos: Pos) -> Option<(Token, usize)> {
-    let mut chars = code.chars();
+    let mut chars = code.chars().peekable();
     match chars.next() {
         Some(c) => {
             if is_identifier_nondigit(c) {
@@ -166,6 +167,13 @@ fn tokenize_impl(code: &str, pos: Pos) -> Option<(Token, usize)> {
             } else {
                 let punc = make_punctuator(c);
                 match punc {
+                    Some(Punctuator::Equal) => {
+                        if chars.peek() == Some(&'=') {
+                            Some((Token{token:TokenType::Punctuator(Punctuator::DoubleEqual), pos}, 2))
+                        } else {
+                            Some((Token{token:TokenType::Punctuator(Punctuator::Equal), pos}, 1))
+                        }
+                    }
                     Some(punc) => Some((Token{token:TokenType::Punctuator(punc), pos}, 1)),
                     None => None
                 }
