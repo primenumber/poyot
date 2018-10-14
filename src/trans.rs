@@ -149,6 +149,18 @@ fn function<W: Write>(func: &Function, start: usize, program: &Program, writer: 
                             bin_op(&inst.args, inst.ret.unwrap(), &mut regs, writer);
                             write!(writer, "MOD\n");
                         }
+                        Operator::LessThan => {
+                            substitute(&inst.args[1], 0, &mut regs, writer);
+                            substitute(&inst.args[0], 0, &mut regs, writer);
+                            regs.pop();
+                            regs.pop();
+                            regs.push(inst.ret.unwrap());
+                            write!(writer, "GREATER\n");
+                        }
+                        Operator::Greater => {
+                            bin_op(&inst.args, inst.ret.unwrap(), &mut regs, writer);
+                            write!(writer, "GREATER\n");
+                        }
                         Operator::Equal => {
                             bin_op(&inst.args, inst.ret.unwrap(), &mut regs, writer);
                             write!(writer, "SUB\n");
