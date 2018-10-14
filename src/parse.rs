@@ -58,7 +58,24 @@ fn expression_call(tokens: &[Token]) -> Option<(AST, usize)> {
                 _ => Some((AST::Leaf(Leaf::Identifier(identifier.to_string())), 1))
             }
         }
-        _ => None
+        Some(Token{token:TokenType::Punctuator(Punctuator::ParenthesisLeft), pos:_}) => {
+            match expression(tokens.get(1..).unwrap()) {
+                Some((ast, seek)) => {
+                    let mut itr2 = itr.skip(seek);
+                    match itr2.next() {
+                        Some(Token{token:TokenType::Punctuator(Punctuator::ParenthesisRight), pos:_}) => {}
+                        _ => return None
+                    }
+                    Some((ast, 1+seek+1))
+                }
+                None => None
+            }
+        }
+        Some(other) => {
+            println!("{:?} is not begin of expression_call", other);
+            None
+        }
+        None => None
     }
 }
 
