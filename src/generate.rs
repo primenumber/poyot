@@ -408,8 +408,20 @@ fn function(node: &Node, program: &Program) -> Option<Function> {
             }
             let regcount = args.len();
             match statement(&node.children[0], program, &mut vars, regcount) {
-                Some(basicblocks) => Some(Function { name: name.to_string(), args: args.to_vec(), retnum, basicblocks }),
-                None => None
+                Some(mut basicblocks) => {
+                    if retnum == 0 && name != "main" {
+                        basicblocks.last_mut().unwrap().statements.push(Statement {
+                            op: Operator::Return,
+                            ret: None,
+                            args: Vec::new()
+                        });
+                    }
+                    Some(Function { name: name.to_string(), args: args.to_vec(), retnum, basicblocks })
+                }
+                None => {
+                    println!("Invalid statements");
+                    None
+                }
             }
         }
         _ => {
