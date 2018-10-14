@@ -330,7 +330,7 @@ fn if_statement(tokens: &[Token]) -> Option<(AST, usize)> {
             Some((AST::Node(Node {
                 op: Operator::If,
                 children: vec![cond, statements]
-            }), 1+seek+1+seek2+3))
+            }), 1+seek+1+seek2+1))
         }
     }
 }
