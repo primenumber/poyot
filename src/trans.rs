@@ -90,10 +90,10 @@ fn function<W: Write>(func: &Function, start: usize, program: &Program, writer: 
                             write!(writer, "JMP func_{}\n", name);
                             write!(writer, "LABEL control_{}\n", start + count);
                             write!(writer, "POP\n");
-                            regs.pop();
                             for _ in &inst.args {
                                 regs.pop();
                             }
+                            regs.pop();
                             match program.funcs.get(name) {
                                 Some(callee) => {
                                     for i in 0..callee.retnum {
