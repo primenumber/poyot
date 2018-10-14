@@ -94,6 +94,20 @@ fn expression(ast: &AST, program: &Program,
                         return None;
                     }
                 }
+                Operator::LessThan => {
+                    if node.children.len() != 2 {
+                        println!("LessThan operation take 2 args, but {} provided",
+                                 node.children.len());
+                        return None;
+                    }
+                }
+                Operator::Greater => {
+                    if node.children.len() != 2 {
+                        println!("Greater operation take 2 args, but {} provided",
+                                 node.children.len());
+                        return None;
+                    }
+                }
                 Operator::Equal => {
                     if node.children.len() != 2 {
                         println!("Equal operation take 2 args, but {} provided",
