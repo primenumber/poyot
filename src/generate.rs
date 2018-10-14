@@ -297,18 +297,22 @@ fn if_op(children: &Vec<AST>, program: &Program,
 fn return_op(children: &Vec<AST>, program: &Program,
              vars: &mut HashMap<String, usize>, statements: &mut Vec<Statement>,
              regcount: usize) -> bool {
-    if children.len() != 1 {
-        return false;
+    let mut vec_id = Vec::new();
+    for child in children {
+        let id = match expression(child, program, vars,
+                                  statements, regcount) {
+            Some(id) => id,
+            None => {
+                println!("Invalid expression");
+                return false
+            }
+        };
+        vec_id.push(id);
     }
-    let id = match expression(&children[0], program, vars,
-                              statements, regcount) {
-        Some(id) => id,
-        None => return false
-    };
     statements.push(Statement {
         op: Operator::Return,
         ret: None,
-        args: vec![id]
+        args: vec_id
     });
     true
 }
