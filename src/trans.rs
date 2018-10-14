@@ -10,6 +10,7 @@ fn pullup<W: Write>(regs: &mut Vec<usize>, reg: usize, writer: &mut BufWriter<W>
     for (i, r) in regs.iter().enumerate() {
         if *r == reg {
             index = i;
+            break;
         }
     }
     let regcount = regs.len();
