@@ -12,6 +12,8 @@ pub enum Operator {
     Modulo,
     Substitute,
     Equal,
+    LessThan,
+    Greater,
     If,
     Call{name: String},
     Return,
@@ -120,13 +122,39 @@ fn expression_add(tokens: &[Token]) -> Option<(AST, usize)> {
     }
 }
 
-fn expression(tokens: &[Token]) -> Option<(AST, usize)> {
+fn expression_greater(tokens: &[Token]) -> Option<(AST, usize)> {
     let (mut lhs, mut seek) = expression_add(tokens)?;
     let mut itr = tokens.iter().skip(seek);
     loop {
         match itr.next() {
-            Some(Token{token:TokenType::Punctuator(Punctuator::DoubleEqual), pos:_}) => {
+            Some(Token{token:TokenType::Punctuator(Punctuator::LessThan), pos:_}) => {
                 let (rhs, seek2) = expression_add(tokens.get((seek+1)..).unwrap())?;
+                lhs = AST::Node(Node {
+                    op: Operator::LessThan,
+                    children: vec![lhs, rhs]
+                });
+                seek += 1 + seek2;
+            }
+            Some(Token{token:TokenType::Punctuator(Punctuator::Greater), pos:_}) => {
+                let (rhs, seek2) = expression_add(tokens.get((seek+1)..).unwrap())?;
+                lhs = AST::Node(Node {
+                    op: Operator::Greater,
+                    children: vec![lhs, rhs]
+                });
+                seek += 1 + seek2;
+            }
+            _ => return Some((lhs, seek))
+        }
+    }
+}
+
+fn expression(tokens: &[Token]) -> Option<(AST, usize)> {
+    let (mut lhs, mut seek) = expression_greater(tokens)?;
+    let mut itr = tokens.iter().skip(seek);
+    loop {
+        match itr.next() {
+            Some(Token{token:TokenType::Punctuator(Punctuator::DoubleEqual), pos:_}) => {
+                let (rhs, seek2) = expression_greater(tokens.get((seek+1)..).unwrap())?;
                 lhs = AST::Node(Node {
                     op: Operator::Equal,
                     children: vec![lhs, rhs]
