@@ -343,23 +343,44 @@ fn return_statement(tokens: &[Token]) -> Option<(AST, usize)> {
     if tokens[0].token != TokenType::Keyword(Keyword::RETURN) {
         println!("In return_statement, At {:?}: Unexpected {:?}, expected return", tokens[0].pos, tokens[0].token);
     }
-    let (ast, seek) = expression(tokens.get(1..).unwrap())?;
-    let mut itr = tokens.iter().skip(1+seek);
-    match itr.next() {
-        Some(Token{token:TokenType::Punctuator(Punctuator::SemiColon), pos:_}) => {}
-        Some(other) => {
-            println!("In return_statement, At {:?}: Unexpected {:?}, expected ;", other.pos, other.token);
-            return None;
+    match expression(tokens.get(1..).unwrap()) {
+        Some((ast, seek)) => {
+            let mut itr = tokens.iter().skip(1+seek);
+            match itr.next() {
+                Some(Token{token:TokenType::Punctuator(Punctuator::SemiColon), pos:_}) => {}
+                Some(other) => {
+                    println!("In return_statement, At {:?}: Unexpected {:?}, expected ;", other.pos, other.token);
+                    return None;
+                }
+                None => {
+                    println!("In return_statement, Unexpected EOF, expected ;");
+                    return None;
+                }
+            }
+            Some((AST::Node(Node {
+                op: Operator::Return,
+                children: vec![ast]
+            }), 1+seek+1))
         }
         None => {
-            println!("In return_statement, Unexpected EOF, expected ;");
-            return None;
+            let mut itr = tokens.iter().skip(1);
+            match itr.next() {
+                Some(Token{token:TokenType::Punctuator(Punctuator::SemiColon), pos:_}) => {}
+                Some(other) => {
+                    println!("In return_statement, At {:?}: Unexpected {:?}, expected ;", other.pos, other.token);
+                    return None;
+                }
+                None => {
+                    println!("In return_statement, Unexpected EOF, expected ;");
+                    return None;
+                }
+            }
+            Some((AST::Node(Node {
+                op: Operator::Return,
+                children: Vec::new()
+            }), 2))
         }
     }
-    Some((AST::Node(Node {
-        op: Operator::Return,
-        children: vec![ast]
-    }), 1+seek+1))
 }
 
 fn statement(tokens: &[Token]) -> Option<(AST, usize)> {
