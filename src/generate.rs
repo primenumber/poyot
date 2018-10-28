@@ -168,7 +168,7 @@ fn substitute(children: &Vec<AST>, program: &Program,
                     }
                     let exp_id = expression(&children[1], program, vars,
                                             statements, regcount)?;
-                    let id = statements.len();
+                    let id = statements.len() + regcount;
                     statements.push(Statement {
                         op: Operator::Substitute,
                         ret: Some(id),
